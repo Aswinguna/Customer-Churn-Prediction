@@ -6,5 +6,5 @@ venv/
 .venv/
 models/*.pkl
 data/telco_churn.csv
-assets/
+# assets/
 .DS_Store
