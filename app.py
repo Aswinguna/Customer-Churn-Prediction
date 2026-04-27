@@ -16,7 +16,6 @@ import shap
 
 warnings.filterwarnings("ignore")
 
-# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Churn Prediction System",
     page_icon="📉",
@@ -24,7 +23,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Load artefacts ────────────────────────────────────────────────────────────
 @st.cache_resource
 def load_artefacts():
     model_dir = "models"
@@ -39,18 +37,15 @@ def load_artefacts():
 
 model, preprocessor, explainer, meta = load_artefacts()
 
-# ── Styles ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 [data-testid="stMetricValue"] { font-size: 2rem; }
 .risk-high   { color: #dc2626; font-weight: 700; font-size: 1.4rem; }
 .risk-medium { color: #d97706; font-weight: 700; font-size: 1.4rem; }
 .risk-low    { color: #16a34a; font-weight: 700; font-size: 1.4rem; }
-.section-title { font-size: 1rem; font-weight: 600; margin: 1rem 0 0.5rem; color: #374151; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Header ────────────────────────────────────────────────────────────────────
 st.title("📉 Customer Churn Prediction System")
 st.markdown(
     f"**Model:** {meta['best_model']}  ·  "
@@ -59,30 +54,26 @@ st.markdown(
 )
 st.divider()
 
-# ── Sidebar — customer inputs ─────────────────────────────────────────────────
 st.sidebar.header("Customer Profile")
 st.sidebar.markdown("Fill in the customer details to predict churn risk.")
 
 with st.sidebar:
     st.markdown("##### Account")
-    tenure           = st.slider("Tenure (months)", 1, 72, 12)
-    contract         = st.selectbox("Contract type", ["Month-to-month", "One year", "Two year"])
+    tenure            = st.slider("Tenure (months)", 1, 72, 12)
+    contract          = st.selectbox("Contract type", ["Month-to-month", "One year", "Two year"])
     paperless_billing = st.selectbox("Paperless billing", ["Yes", "No"])
-    payment_method   = st.selectbox("Payment method", [
+    payment_method    = st.selectbox("Payment method", [
         "Electronic check", "Mailed check",
         "Bank transfer (automatic)", "Credit card (automatic)"
     ])
-
     st.markdown("##### Charges")
     monthly_charges = st.slider("Monthly charges ($)", 18.0, 120.0, 65.0, step=0.5)
     total_charges   = st.number_input("Total charges ($)", min_value=0.0,
                                       value=float(monthly_charges * tenure), step=10.0)
-
     st.markdown("##### Demographics")
     senior_citizen = st.selectbox("Senior citizen", [0, 1], format_func=lambda x: "Yes" if x else "No")
     partner        = st.selectbox("Has partner",    ["Yes", "No"])
     dependents     = st.selectbox("Has dependents", ["Yes", "No"])
-
     st.markdown("##### Services")
     phone_service    = st.selectbox("Phone service",    ["Yes", "No"])
     multiple_lines   = st.selectbox("Multiple lines",   ["Yes", "No", "No phone service"])
@@ -92,7 +83,6 @@ with st.sidebar:
     streaming_tv     = st.selectbox("Streaming TV",     ["Yes", "No", "No internet service"])
     streaming_movies = st.selectbox("Streaming movies", ["Yes", "No", "No internet service"])
 
-# ── Build input dataframe ─────────────────────────────────────────────────────
 num_services = sum([
     phone_service    == "Yes",
     multiple_lines   == "Yes",
@@ -128,8 +118,7 @@ input_data = pd.DataFrame([{
     "num_services":      num_services,
 }])
 
-# ── Predict ───────────────────────────────────────────────────────────────────
-X_enc    = preprocessor.transform(input_data)
+X_enc      = preprocessor.transform(input_data)
 churn_prob = model.predict_proba(X_enc)[0][1]
 churn_pct  = churn_prob * 100
 
@@ -146,9 +135,7 @@ else:
     risk_class = "risk-low"
     action     = "Customer appears stable. No action needed."
 
-# ── Layout — top row ──────────────────────────────────────────────────────────
 col1, col2, col3, col4 = st.columns(4)
-
 col1.metric("Churn Probability", f"{churn_pct:.1f}%")
 col2.metric("Tenure",            f"{tenure} months")
 col3.metric("Monthly Charges",   f"${monthly_charges:.2f}")
@@ -158,38 +145,39 @@ st.markdown(f'<p class="{risk_class}">{risk_label}</p>', unsafe_allow_html=True)
 st.caption(action)
 st.divider()
 
-# ── SHAP explanation ──────────────────────────────────────────────────────────
 col_shap, col_eval = st.columns([1, 1])
 
 with col_shap:
     st.subheader("Why this prediction?")
     st.caption("SHAP values show which features pushed the risk up (red) or down (blue).")
 
-    shap_values = explainer.shap_values(X_enc)
-    if isinstance(shap_values, list):
-        sv = shap_values[1][0]
-    else:
-        sv = shap_values[0]
+    try:
+        raw = explainer.shap_values(X_enc)
+        if isinstance(raw, list):
+            sv = raw[1][0]
+        elif hasattr(raw, 'ndim') and raw.ndim == 2:
+            sv = raw[0]
+        else:
+            sv = raw
 
-    feat_names = meta["all"]
-    shap_df = pd.DataFrame({
-        "feature": feat_names,
-        "value":   sv
-    }).reindex(pd.Index(feat_names))
-    shap_df = shap_df.reindex(shap_df["value"].abs().sort_values(ascending=True).index)
-    top = shap_df.tail(12)
+        feat_names = meta["all"]
+        shap_df = pd.DataFrame({"feature": feat_names, "value": sv})
+        shap_df = shap_df.reindex(shap_df["value"].abs().sort_values(ascending=True).index)
+        top = shap_df.tail(12)
+        colors = ["#dc2626" if v > 0 else "#2563eb" for v in top["value"]]
 
-    colors = ["#dc2626" if v > 0 else "#2563eb" for v in top["value"]]
+        fig, ax = plt.subplots(figsize=(6, 4.5))
+        ax.barh(top["feature"], top["value"], color=colors, alpha=0.85)
+        ax.axvline(0, color="black", linewidth=0.8)
+        ax.set_xlabel("SHAP value (impact on churn probability)")
+        ax.set_title("Feature contributions for this customer")
+        ax.tick_params(axis="y", labelsize=8)
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close()
 
-    fig, ax = plt.subplots(figsize=(6, 4.5))
-    bars = ax.barh(top["feature"], top["value"], color=colors, alpha=0.85)
-    ax.axvline(0, color="black", linewidth=0.8)
-    ax.set_xlabel("SHAP value (impact on churn probability)")
-    ax.set_title("Feature contributions for this customer")
-    ax.tick_params(axis="y", labelsize=8)
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close()
+    except Exception as e:
+        st.warning(f"SHAP chart unavailable: {e}")
 
 with col_eval:
     st.subheader("Model Performance")
@@ -198,7 +186,6 @@ with col_eval:
         st.image("assets/evaluation.png", use_container_width=True)
     else:
         st.info("Run `python src/train.py` to generate evaluation plots.")
-
     st.divider()
     st.subheader("SHAP Summary — Full Dataset")
     st.caption("Global feature importance across all customers.")
@@ -207,19 +194,18 @@ with col_eval:
     else:
         st.info("Run `python src/train.py` to generate SHAP summary.")
 
-# ── Customer risk profile table ───────────────────────────────────────────────
 st.divider()
 st.subheader("Customer Risk Profile")
 
 profile = {
-    "Contract Type":       contract,
-    "Internet Service":    internet_service,
-    "Payment Method":      payment_method,
-    "Online Security":     online_security,
-    "Tech Support":        tech_support,
-    "Paperless Billing":   paperless_billing,
-    "Total Services":      str(num_services),
-    "Estimated CLV ($)":   f"{monthly_charges * 24:.2f}",
+    "Contract Type":     contract,
+    "Internet Service":  internet_service,
+    "Payment Method":    payment_method,
+    "Online Security":   online_security,
+    "Tech Support":      tech_support,
+    "Paperless Billing": paperless_billing,
+    "Total Services":    str(num_services),
+    "Estimated CLV ($)": f"{monthly_charges * 24:.2f}",
 }
 st.dataframe(
     pd.DataFrame(profile.items(), columns=["Attribute", "Value"]),

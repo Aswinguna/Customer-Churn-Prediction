@@ -82,11 +82,7 @@ streamlit run app.py
 
 ## 🖥️ Dashboard Preview
 
-The Streamlit app lets you:
-- Adjust any customer attribute using sidebar controls
-- See the **churn probability** update in real time
-- Read the **SHAP waterfall chart** explaining exactly which features pushed the risk score up or down
-- View the **global SHAP summary** and ROC/confusion matrix from training
+![Churn Prediction Dashboard](assets/screenshot.png)
 
 ---
 

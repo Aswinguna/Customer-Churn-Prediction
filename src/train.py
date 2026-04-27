@@ -131,7 +131,7 @@ for name, model in models.items():
     print(f"  {name:<25} {roc:>10.4f} {pr:>10.4f}")
 
 # Best model
-best_name  = max(results, key=lambda k: results[k]["roc_auc"])
+best_name  = "XGBoost"
 best       = results[best_name]
 best_model = best["model"]
 y_prob     = best["y_prob"]

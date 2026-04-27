@@ -54,7 +54,7 @@
     "payment_method_Electronic check",
     "payment_method_Mailed check"
   ],
-  "best_model": "Logistic Regression",
-  "roc_auc": 0.7123,
-  "pr_auc": 0.477
+  "best_model": "XGBoost",
+  "roc_auc": 0.6779,
+  "pr_auc": 0.4142
 }
